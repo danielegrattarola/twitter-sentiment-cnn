@@ -1,0 +1,6 @@
+output/
+*.pyc
+tw-data.neg
+tw-data.pos
+vocab.csv
+vocab_inv.csv
