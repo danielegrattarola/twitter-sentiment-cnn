@@ -1,4 +1,4 @@
-# Twitter sentiment classification 
+# Twitter sentiment classification by Daniele Grattarola
 This is an implementation in TensorFlow of a convolutional neural network (CNN) to perform sentiment classification on tweets.   
 Rather than a pre-packaged tool to simply perform classification, this is a model that needs to be trained and fine tuned by hand and has more of an educational value.    
 The dataset used in this example is taken from [here](http://thinknook.com/twitter-sentiment-analysis-training-corpus-dataset-2012-09-22/)
