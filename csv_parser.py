@@ -5,7 +5,7 @@ Reads the csv dataset available at http://thinknook.com/wp-content/uploads/2012/
 Does some word preprocessing during the parsing.
 """
 try: 
-	full_dataset = open("twitter-sentiment-dataset/Sentiment Analysis Dataset.csv", "r")	
+	full_dataset = open("twitter-sentiment-dataset/sentiment-dataset.csv", "r")	
 	pos_dataset = open("twitter-sentiment-dataset/tw-data.pos", "w")
 	neg_dataset = open("twitter-sentiment-dataset/tw-data.neg", "w")
 except:
