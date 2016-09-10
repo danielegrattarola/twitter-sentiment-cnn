@@ -1,7 +1,7 @@
 # Twitter sentiment classification by Daniele Grattarola
 This is an implementation in TensorFlow of a convolutional neural network (CNN) to perform sentiment classification on tweets.   
 Rather than a pre-packaged tool to simply perform classification, this is a model that needs to be trained and fine tuned by hand and has more of an educational value.    
-The dataset used in this example is taken from [here](http://thinknook.com/twitter-sentiment-analysis-training-corpus-dataset-2012-09-22/).    
+The dataset used in this example is taken from [here](http://thinknook.com/twitter-sentiment-analysis-training-corpus-dataset-2012-09-22/) (EDIT: link appears to be dead so dataset_downloader.py might not work. Contact me if you want access to the dataset).    
 You'll obviously need TensorFlow >=0.7.0 and its dependecies installed in order for the script to work (see [here](https://www.tensorflow.org/)).   
 Download the source files and `cd` into the folder:
 ```sh
