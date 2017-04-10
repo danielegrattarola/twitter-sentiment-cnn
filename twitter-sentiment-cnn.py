@@ -44,7 +44,7 @@ else:
 	os.mkdir(RUN_DIR)
 SUMMARY_DIR = os.path.join(RUN_DIR, "summaries")
 
-try: 
+try:
 	LOG_FILE = open(LOG_FILE_PATH, 'a', 0)
 except:
 	print_red("Failed to open file.")
@@ -98,16 +98,16 @@ log('\nOutput folder:', RUN_DIR)
 
 def weight_variable(shape, name):
 	"""
-	Creates a new Tf weight variable with the given shape and name. 
-	Returns the new variable. 
+	Creates a new Tf weight variable with the given shape and name.
+	Returns the new variable.
 	"""
 	var = tf.truncated_normal(shape, stddev=0.1)
 	return tf.Variable(var, name=name)
 
 def bias_variable(shape, name):
 	"""
-	Creates a new Tf bias variable with the given shape and name. 
-	Returns the new variable. 
+	Creates a new Tf bias variable with the given shape and name.
+	Returns the new variable.
 	"""
 	var = tf.constant(0.1, shape=shape)
 	return tf.Variable(var, name=name)
@@ -138,8 +138,8 @@ def human_readable_output(my_batch):
 
 def evaluate_sentence(sentence, vocabulary):
 	"""
-	Translates a string to its equivalent in the integer vocabulary and feeds it to the network. 
-	Outputs result to stdout. 
+	Translates a string to its equivalent in the integer vocabulary and feeds it to the network.
+	Outputs result to stdout.
 	"""
 	x_to_eval = data_helpers.string_to_int(sentence, vocabulary, max(len(i) for i in x))
 	result = sess.run(tf.argmax(network_out,1), feed_dict={data_in: x_to_eval, dropout_keep_prob: 1.0})
@@ -165,7 +165,7 @@ with tf.name_scope("embedding"):
 	embedded_chars = tf.nn.embedding_lookup(W, data_in)
 	embedded_chars_expanded = tf.expand_dims(embedded_chars, -1)
 
-# Convolution + ReLU + Pooling layer 
+# Convolution + ReLU + Pooling layer
 pooled_outputs = []
 for i, filter_size in enumerate(filter_sizes):
 	with tf.name_scope("conv-maxpool-%s" % filter_size):
@@ -192,7 +192,7 @@ for i, filter_size in enumerate(filter_sizes):
 
 # Combine the pooled feature tensors
 num_filters_total = FLAGS.num_filters * len(filter_sizes)
-h_pool = tf.concat(3, pooled_outputs)
+h_pool = tf.concat(pooled_outputs, 3)
 h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
 
 # Dropout
@@ -206,7 +206,7 @@ with tf.name_scope("output"):
 	network_out = tf.nn.softmax(tf.matmul(h_drop, W_out) + b_out) # Network output
 
 # Loss function
-cross_entropy = -tf.reduce_sum(data_out*tf.log(network_out)) 
+cross_entropy = -tf.reduce_sum(data_out*tf.log(network_out))
 
 # Training algorithm
 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
@@ -225,7 +225,7 @@ valid_mean_loss = tf.reduce_mean(valid_losses)
 if should_load and FLAGS.load != '':
 	log("Data processing OK, loading network...")
 	saver = tf.train.Saver()
-	try: 
+	try:
 		saver.restore(sess, CHECKPOINT_FILE_PATH)
 	except:
 		log('##############################################################################')
@@ -234,14 +234,14 @@ if should_load and FLAGS.load != '':
 		sess.run(tf.initialize_all_variables())
 else:
 	log("Data processing OK, creating network...")
-	sess.run(tf.initialize_all_variables())
+	sess.run(tf.global_variables_initializer())
 
 # Summaries for loss and accuracy
-loss_summary = tf.scalar_summary("Training loss", cross_entropy)
-valid_loss_summary = tf.scalar_summary("Validation loss", valid_mean_loss)
-valid_accuracy_summary = tf.scalar_summary("Validation accuracy", valid_mean_accuracy)
-summary_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph_def)
-tf.merge_all_summaries()
+loss_summary = tf.summary.scalar("Training loss", cross_entropy)
+valid_loss_summary = tf.summary.scalar("Validation loss", valid_mean_loss)
+valid_accuracy_summary = tf.summary.scalar("Validation accuracy", valid_mean_accuracy)
+summary_writer = tf.summary.FileWriter(SUMMARY_DIR)
+summary_writer.add_graph(sess.graph)
 log("=======================================================")
 
 # Training
@@ -258,22 +258,23 @@ if FLAGS.train:
 	batches_in_epoch = len(y_train) / FLAGS.batch_size
 	batches_in_epoch = batches_in_epoch if batches_in_epoch != 0 else 1 #prevent division by 0 if dataset smaller than batch_size
 	total_num_step = FLAGS.epochs * batches_in_epoch
-	
+
 	for batch in batches:
 		global_step += 1
 		x_batch, y_batch = zip(*batch)
 
-		#Run the training step
-		train_result, loss_summary_result = sess.run([train_step, loss_summary], feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 0.5})
-		
-		# Print training accuracy
-		accuracy_result = accuracy.eval(feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 1.0})
-		current_loss = cross_entropy.eval(feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 1.0})
-		current_epoch = 1+(global_step/batches_in_epoch)
-		print("Step %d of %d (epoch %d), training accuracy: %g, loss: %g" % (global_step, total_num_step, current_epoch, accuracy_result,current_loss))
+		with tf.device("/gpu:0"):
+			#Run the training step
+			train_result, loss_summary_result = sess.run([train_step, loss_summary], feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 0.5})
 
-		# Write loss summary 
-		summary_writer.add_summary(loss_summary_result, global_step)
+			# Print training accuracy
+			accuracy_result = accuracy.eval(feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 1.0})
+			current_loss = cross_entropy.eval(feed_dict={data_in: x_batch, data_out: y_batch, dropout_keep_prob: 1.0})
+			current_epoch = 1+(global_step/batches_in_epoch)
+			print("Step %d of %d (epoch %d), training accuracy: %g, loss: %g" % (global_step, total_num_step, current_epoch, accuracy_result,current_loss))
+
+			# Write loss summary
+			summary_writer.add_summary(loss_summary_result, global_step)
 
 		# Validation testing
 		# For each batch, evaluate accuracy as (number of correctly classified samples) / (number of all samples)
@@ -304,7 +305,7 @@ if FLAGS.train:
 			log("Saving checkpoint...")
 			saver = tf.train.Saver()
 			saver.save(sess, CHECKPOINT_FILE_PATH)
-			
+
 	# Final validation testing
 	accuracies = []
 	losses = []
