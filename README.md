@@ -62,6 +62,7 @@ python twitter-sentiment-cnn.py -h
 the script will output a list of all customizable session parameters. The parameters are: 
 - `train`: whether the network should perform training (default: False)
 - `save`: save session checkpoints (default: False)
+- `save_protobuf`: save pre-trained model as binary protobuf (default: False)
 - `evaluate_batch`: print the network output on a batch from the dataset (for debugging/educational purposes)
 - `load`: restore the given session if it exists (Pass the name of the session folder: runYYYMMDD-hhmmss)
 - `custom_input`: the program will print the network output for the given input string.
