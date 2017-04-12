@@ -3,7 +3,7 @@ import numpy as np
 from random import randint
 from generic_helpers import *
 import os, time, data_helpers
-
+from tensorflow.python.framework.graph_util import convert_variables_to_constants
 
 ################
 ##### DATA #####
@@ -12,6 +12,7 @@ import os, time, data_helpers
 # Hyperparameters
 tf.flags.DEFINE_boolean("train", False, "Should the network perform training? (default: False)")
 tf.flags.DEFINE_boolean("save", False, "Save session checkpoints (default: False)")
+tf.flags.DEFINE_boolean("save_protobuf", False, "Save session as binary protobuf (default: False)")
 tf.flags.DEFINE_boolean("evaluate_batch", False, "Print the network output on a batch from the dataset (for debugging/educational purposes")
 tf.flags.DEFINE_string("load", '', "Restore the given session if it exists (Pass the name of the session folder: runYYYMMDD-hhmmss)")
 tf.flags.DEFINE_string("custom_input", "", "The program will print the network output for the given input string.")
@@ -112,6 +113,14 @@ def bias_variable(shape, name):
 	var = tf.constant(0.1, shape=shape)
 	return tf.Variable(var, name=name)
 
+def save_protobuf():
+	"""
+	Save protobuf
+	"""
+	minimal_graph = convert_variables_to_constants(sess, sess.graph_def, ["output"])
+	tf.train.write_graph(minimal_graph, '.', 'minimal_graph.proto', as_text=False)
+	tf.train.write_graph(minimal_graph, '.', 'minimal_graph.txt', as_text=True)
+
 def human_readable_output(my_batch):
 	"""
 	Feeds a batch to the network and prints in a human readable format a comparison between the batch's labels and the network output.
@@ -192,7 +201,7 @@ for i, filter_size in enumerate(filter_sizes):
 
 # Combine the pooled feature tensors
 num_filters_total = FLAGS.num_filters * len(filter_sizes)
-h_pool = tf.concat(3, pooled_outputs)
+h_pool = tf.concat(pooled_outputs, 3)
 h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
 
 # Dropout
@@ -234,14 +243,15 @@ if should_load and FLAGS.load != '':
 		sess.run(tf.initialize_all_variables())
 else:
 	log("Data processing OK, creating network...")
-	sess.run(tf.initialize_all_variables())
+	sess.run(tf.global_variables_initializer())
+
 
 # Summaries for loss and accuracy
-loss_summary = tf.scalar_summary("Training loss", cross_entropy)
-valid_loss_summary = tf.scalar_summary("Validation loss", valid_mean_loss)
-valid_accuracy_summary = tf.scalar_summary("Validation accuracy", valid_mean_accuracy)
-summary_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph_def)
-tf.merge_all_summaries()
+loss_summary = tf.summary.scalar("Training loss", cross_entropy)
+valid_loss_summary = tf.summary.scalar("Validation loss", valid_mean_loss)
+valid_accuracy_summary = tf.summary.scalar("Validation accuracy", valid_mean_accuracy)
+summary_writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)
+tf.summary.merge_all()
 log("=======================================================")
 
 # Training
@@ -333,8 +343,16 @@ if FLAGS.evaluate_batch :
 		_batches = list(data_helpers.batch_iter(zip(x_test, y_test), FLAGS.batch_size, 1))
 		my_batch = _batches[randint(0,len(_batches))]
 	human_readable_output(my_batch)
+
 #Save final checkpoint
 if FLAGS.save:
 	log("Saving checkpoint...")
 	saver = tf.train.Saver()
 	saver.save(sess, CHECKPOINT_FILE_PATH)
+
+#Save as Binary Protobufer
+if FLAGS.save_protobuf:
+	log("Saving Protobuf...")
+	minimal_graph = convert_variables_to_constants(sess, sess.graph_def, ["output/Softmax"])
+	tf.train.write_graph(minimal_graph, RUN_DIR, 'minimal_graph.proto', as_text=False)
+	tf.train.write_graph(minimal_graph, RUN_DIR, 'minimal_graph.txt', as_text=True)
