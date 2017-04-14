@@ -9,6 +9,7 @@ NEG_DATASET_PATH = 'twitter-sentiment-dataset/tw-data.neg'
 VOC_PATH = 'twitter-sentiment-dataset/vocab.csv'
 VOC_INV_PATH = 'twitter-sentiment-dataset/vocab_inv.csv'
 
+
 def clean_str(string):
     """
     Tokenizes common abbreviations and punctuation, removes unwanted characters. 
@@ -30,15 +31,18 @@ def clean_str(string):
     string = re.sub(r"\s{2,}", " ", string)
     return string.strip().lower()
 
+
 def sample_list(list, dividend):
     """
     Returns 1/dividend-th of the given list, randomply sampled. 
     """
     return random.sample(list, len(list)/dividend)
 
+
 def load_data_and_labels(reduced_dataset):
     """
-    Loads data from files, processes the data and creates two lists, one of strings and one of labels. 
+    Loads data from files, processes the data and creates two lists, one of
+    strings and one of labels.
     Returns the lists. 
     """
     print "\tdata_helpers: loading positive examples..."
@@ -73,7 +77,8 @@ def load_data_and_labels(reduced_dataset):
 
 def pad_sentences(sentences, padding_word="<PAD/>"):
     """
-    Pads all sentences to the same length. The length is defined by the longest sentence.
+    Pads all sentences to the same length. The length is defined by the longest
+    sentence.
     Returns padded sentences.
     """
     sequence_length = max(len(x) for x in sentences)
@@ -84,6 +89,7 @@ def pad_sentences(sentences, padding_word="<PAD/>"):
         new_sentence = sentence + [padding_word] * num_padding
         padded_sentences.append(new_sentence)
     return padded_sentences
+
 
 def pad_sentences_to(sentences, pad_to, padding_word="<PAD/>"):
     """
@@ -99,10 +105,12 @@ def pad_sentences_to(sentences, pad_to, padding_word="<PAD/>"):
         padded_sentences.append(new_sentence)
     return padded_sentences
 
+
 def build_vocab():
     """
-    Reads the vocabulary and its inverse mapping from the csv in the dataset folder.
-    Returns a list with the vocabulary and the inverese mapping. 
+    Reads the vocabulary and its inverse mapping from the csv in the dataset
+    folder.
+    Returns a list with the vocabulary and the inverse mapping.
     """
     voc = csv.reader(open(VOC_PATH))
     voc_inv = csv.reader(open(VOC_INV_PATH))
@@ -118,16 +126,18 @@ def build_input_data(sentences, labels, vocabulary):
     Maps sentencs and labels to vectors based on a vocabulary.
     Returns the mapped lists. 
     """
-    x = np.array([[vocabulary[word] for word in sentence] for sentence in sentences])
+    x = np.array([[vocabulary[word] for word in sentence]
+                  for sentence in sentences])
     y = np.array(labels)
     return [x, y]
 
+
 def string_to_int(sentence, vocabulary, max_len):
     """
-    Converts the given string to the corresponing string encoded in integers.
+    Converts the given string to the corresponding string encoded in integers.
     Returns the encoded string.
     """
-    #Reads dataset in order to create the vocabulary
+    # Reads dataset in order to create the vocabulary
     base = [sentence]
     base = [s.strip() for s in base]
     x_text = base
@@ -135,11 +145,13 @@ def string_to_int(sentence, vocabulary, max_len):
     x_text = [s.split(" ") for s in x_text]
     padded_x_text = pad_sentences_to(x_text, max_len)
     try: 
-        x = np.array([[vocabulary[word] for word in sentence] for sentence in padded_x_text])
+        x = np.array([[vocabulary[word] for word in sentence]
+                      for sentence in padded_x_text])
         return x
     except KeyError, e:
-        print "The following word is unknown to the network: %s - Try again." % str(e)
+        print "The following word is unknown to the network: %s" % str(e)
         quit()
+
 
 def load_data(reduced_dataset):
     """

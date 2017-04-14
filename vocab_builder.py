@@ -1,8 +1,11 @@
 from data_helpers import *
 import csv
+
 """
 Reads the dataset and creates two csv files: one with the vocabulary used in the dataset, and one with the vocabulary's integer mapping (sorted from most to least used).
 """
+
+
 def build_vocab(sentences):
     """
     Builds a vocabulary mapping from word to index based on the sentences.
@@ -16,9 +19,10 @@ def build_vocab(sentences):
     vocabulary = {x: i for i, x in enumerate(vocabulary_inv)}
     return [vocabulary, vocabulary_inv]
 
+
 # Load and preprocess data
 print 'vocab_builder: loading...'
-sentences, labels = load_data_and_labels(1) # 1 is passed so that load_data_and_labels() will parse the whole dataset
+sentences, labels = load_data_and_labels(1)  # 1 is passed so that load_data_and_labels() will parse the whole dataset
 print 'vocab_builder: padding...'
 sentences_padded = pad_sentences(sentences)
 print 'vocab_builder: building vocabularies...'
@@ -29,6 +33,6 @@ voc = csv.writer(open('twitter-sentiment-dataset/vocab.csv', 'w'))
 voc_inv = csv.writer(open('twitter-sentiment-dataset/vocab_inv.csv', 'w'))
 
 for key, val in vocabulary.items():
-	voc.writerow([key, val])
+    voc.writerow([key, val])
 for val in vocabulary_inv:
-	voc_inv.writerow([val])
+    voc_inv.writerow([val])
