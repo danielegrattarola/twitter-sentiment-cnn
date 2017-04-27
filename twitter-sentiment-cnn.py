@@ -5,9 +5,85 @@ from generic_helpers import *
 from data_helpers import batch_iter, load_data, string_to_int
 import os
 import time
-from tensorflow.python.framework.graph_util import \
-    convert_variables_to_constants
+from tensorflow.python.framework.graph_util import convert_variables_to_constants
+from tqdm import tqdm
 
+
+def log(*string, **kwargs):
+    output = ' '.join(string)
+    if kwargs.pop('verbose', True):
+        print output
+    LOG_FILE.write(''.join(['\n', output]))
+
+
+def weight_variable(shape, name):
+    """
+    Creates a new Tf weight variable with the given shape and name.
+    Returns the new variable.
+    """
+    var = tf.truncated_normal(shape, stddev=0.1)
+    return tf.Variable(var, name=name)
+
+
+def bias_variable(shape, name):
+    """
+    Creates a new Tf bias variable with the given shape and name.
+    Returns the new variable.
+    """
+    var = tf.constant(0.1, shape=shape)
+    return tf.Variable(var, name=name)
+
+
+def human_readable_output(a_batch):
+    """
+    Feeds a batch to the network and prints in a human readable format a
+    comparison between the batch's labels and the network output.
+    Outputs comparison to stdout.
+    """
+    log('Network output on random data...')
+    sentences = zip(*a_batch)[0]
+    word_sentence = []
+    network_result = sess.run(tf.argmax(network_out, 1),
+                              feed_dict={data_in: zip(*a_batch)[0],
+                                         dropout_keep_prob: 1.0})
+    actual_result = sess.run(tf.argmax(data_out, 1),
+                             feed_dict={data_out: zip(*a_batch)[1]})
+    # Translate the string to ASCII (remove <PAD/> symbols)
+    for s in sentences:
+        output = ''
+        for w in s:
+            output += vocabulary_inv[w.astype(np.int)][0] + ' '
+        output = output.translate(None, '<PAD/>')
+        word_sentence.append(output)
+    # Output the network result
+    for idx, item in enumerate(network_result, start=0):
+        network_sentiment = 'POS' if item == 1 else 'NEG'
+        actual_sentiment = 'POS' if actual_result[idx] == 1 else 'NEG'
+
+        if item == actual_result[idx]:
+            status = '\033[92mCORRECT\033[0m'
+        else:
+            status = '\033[91mWRONG\033[0m'
+
+        log('\n%s\nLABEL: %s - OUTPUT %s | %s' %
+            (word_sentence[idx], actual_sentiment, network_sentiment, status))
+
+
+def evaluate_sentence(sentence, vocabulary):
+    """
+    Translates a string to its equivalent in the integer vocabulary and feeds it
+    to the network.
+    Outputs result to stdout.
+    """
+    x_to_eval = string_to_int(sentence, vocabulary, max(len(_) for _ in x))
+    result = sess.run(tf.argmax(network_out, 1),
+                      feed_dict={data_in: x_to_eval,
+                                 dropout_keep_prob: 1.0})
+    unnorm_result = sess.run(network_out, feed_dict={data_in: x_to_eval,
+                                                     dropout_keep_prob: 1.0})
+    network_sentiment = 'POS' if result == 1 else 'NEG'
+    log('Custom input evaluation:', network_sentiment)
+    log('Actual output:', str(unnorm_result[0]))
 
 # Hyperparameters
 tf.flags.DEFINE_boolean('train', False,
@@ -19,9 +95,11 @@ tf.flags.DEFINE_boolean('save_protobuf', False,
 tf.flags.DEFINE_boolean('evaluate_batch', False,
                         'Print the network output on a batch from the dataset '
                         '(for debugging/educational purposes')
-tf.flags.DEFINE_string('load', '',
-                       'Restore the given session if it exists (Pass the name '
-                       'of the session folder: runYYYMMDD-hhmmss)')
+tf.flags.DEFINE_string('load', None,
+                       'Load a previous run from the given path (must '
+                       'contain a log and checkpoint file).')
+tf.flags.DEFINE_string('device', 'cpu', 'Type of device to run the network on.'
+                                        '(Can be either \'cpu\' or \'gpu\')')
 tf.flags.DEFINE_string('custom_input', '',
                        'The program will print the network output for the '
                        'given input string.')
@@ -46,46 +124,29 @@ tf.flags.DEFINE_integer('checkpoint_freq', 1,
 tf.flags.DEFINE_integer('test_data_ratio', 10,
                         'Percentual of the dataset to be used for validation '
                         '(default: 10)')
-
 FLAGS = tf.flags.FLAGS
 
 # File paths
 OUT_DIR = os.path.abspath(os.path.join(os.path.curdir, 'output'))
-RUN_DIR = os.path.abspath(os.path.join(OUT_DIR, FLAGS.load))
-should_load = os.path.exists(RUN_DIR)
-if should_load and FLAGS.load != '':
+if FLAGS.load is not None:
+    # Use logfile and checkpoint from given path
+    RUN_DIR = FLAGS.load
     LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
-    CHECKPOINT_FILE_PATH = os.path.abspath(
-        os.path.join(RUN_DIR, 'checkpoint.ckpt'))
+    CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'ckpt.ckpt'))
+    assert os.path.exists(RUN_DIR), 'Run folder does not exist.'
+    assert os.path.exists(LOG_FILE_PATH), 'log.log file does not exist.'
+    assert os.path.exists(CHECKPOINT_FILE_PATH), 'ckpt.ckpt does not exist.'
 else:
-    if FLAGS.load != '':
-        print_red(' '.join(['Folder', FLAGS.load, 'not found.']))
-    RUN_DIR = os.path.abspath(
-        os.path.join(OUT_DIR, time.strftime('run%Y%m%d-%H%M%S')))
+    RUN_ID = time.strftime('run%Y%m%d-%H%M%S')
+    RUN_DIR = os.path.abspath(os.path.join(OUT_DIR, RUN_ID))
     LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
-    CHECKPOINT_FILE_PATH = os.path.abspath(
-        os.path.join(RUN_DIR, 'checkpoint.ckpt'))
+    CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'ckpt.ckpt'))
     os.mkdir(RUN_DIR)
 SUMMARY_DIR = os.path.join(RUN_DIR, 'summaries')
-
-try:
-    LOG_FILE = open(LOG_FILE_PATH, 'a', 0)
-except:
-    print_red('Failed to open file.')
-    quit()
+LOG_FILE = open(LOG_FILE_PATH, 'a', 0)
 
 
-def log(*string):
-    output = ' '.join(string)
-    print output
-    LOG_FILE.write(''.join(['\n', output]))
-
-
-log('=======================================================')
 log('======================= START! ========================')
-log('=======================================================')
-log('Preprocessing...')
-
 # Load data
 x, y, vocabulary, vocabulary_inv = load_data(FLAGS.reduced_dataset)
 
@@ -94,13 +155,14 @@ np.random.seed(123)
 shuffle_indices = np.random.permutation(np.arange(len(y)))
 x_shuffled = x[shuffle_indices]
 y_shuffled = y[shuffle_indices]
+
 # Split train/test set
 text_percent = FLAGS.test_data_ratio / 100.0
 test_index = int(len(x) * text_percent)
 x_train, x_test = x_shuffled[:-test_index], x_shuffled[-test_index:]
 y_train, y_test = y_shuffled[:-test_index], y_shuffled[-test_index:]
 
-# Derived parameters
+# Parameters
 sequence_length = x_train.shape[1]
 num_classes = y_train.shape[1]
 vocab_size = len(vocabulary)
@@ -108,168 +170,109 @@ filter_sizes = map(int, FLAGS.filter_sizes.split(','))
 validate_every = len(y_train) / (FLAGS.batch_size * FLAGS.valid_freq)
 checkpoint_every = len(y_train) / (FLAGS.batch_size * FLAGS.checkpoint_freq)
 
-# Session variables
-sess = tf.InteractiveSession()
+# Set computation device
+if FLAGS.device == 'gpu':
+    device = '/gpu:0'
+else:
+    device = '/cpu:0'
 
+# Log run data
 log('\nFlags:')
 for attr, value in sorted(FLAGS.__flags.iteritems()):
-    log('\t{} = {}'.format(attr, value))
+    log('\t%s = %s' % (attr, value))
 log('\nDataset:')
-log('\tTrain set size = %d\n\tTest set size = %d\n\tVocabulary size = %d\n'
-    '\tInput layer size = %d\n\tNumber of classes = %d' % 
+log('\tTrain set size = %d\n'
+    '\tTest set size = %d\n'
+    '\tVocabulary size = %d\n'
+    '\tInput layer size = %d\n'
+    '\tNumber of classes = %d' %
     (len(y_train), len(y_test), len(vocabulary), sequence_length, num_classes))
 log('\nOutput folder:', RUN_DIR)
 
-
-# Helper functions
-
-def weight_variable(shape, name):
-    """
-    Creates a new Tf weight variable with the given shape and name.
-    Returns the new variable.
-    """
-    var = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(var, name=name)
-
-
-def bias_variable(shape, name):
-    """
-    Creates a new Tf bias variable with the given shape and name.
-    Returns the new variable.
-    """
-    var = tf.constant(0.1, shape=shape)
-    return tf.Variable(var, name=name)
-
-
-def save_protobuf():
-    """
-    Save protobuf
-    """
-    minimal_graph = convert_variables_to_constants(sess, sess.graph_def,
-                                                   ['output'])
-    tf.train.write_graph(minimal_graph, '.', 'minimal_graph.proto',
-                         as_text=False)
-    tf.train.write_graph(minimal_graph, '.', 'minimal_graph.txt', as_text=True)
-
-
-def human_readable_output(my_batch):
-    """
-    Feeds a batch to the network and prints in a human readable format a
-    comparison between the batch's labels and the network output.
-    Outputs comparison to stdout.
-    """
-    log('Network output on random data...')
-    sentences = zip(*my_batch)[0]
-    word_sentence = []
-    network_result = sess.run(tf.argmax(network_out, 1),
-                              feed_dict={data_in: zip(*my_batch)[0],
-                                         dropout_keep_prob: 1.0})
-    actual_result = sess.run(tf.argmax(data_out, 1),
-                             feed_dict={data_out: zip(*my_batch)[1]})
-    # Translate the string to ASCII (remove <PAD/> symbols)
-    for s in sentences:
-        output = ''
-        for w in s:
-            output += vocabulary_inv[w.astype(np.int)][0] + ' '
-        output = output.translate(None, '<PAD/>')
-        word_sentence.append(output)
-    # Output the network result
-    for idx, item in enumerate(network_result, start=0):
-        network_sentiment = 'POS' if item == 1 else 'NEG'
-        actual_sentiment = 'POS' if actual_result[idx] == 1 else 'NEG'
-        status = '\033[92mCORRECT\033[0m' if item == actual_result[
-            idx] else '\033[91mWRONG\033[0m'
-        log('\n', word_sentence[idx], '\n', 'LABEL:', actual_sentiment,
-            '- OUTPUT:', network_sentiment, '|', status)
-
-
-def evaluate_sentence(sentence, vocabulary):
-    """
-    Translates a string to its equivalent in the integer vocabulary and feeds it
-    to the network.
-    Outputs result to stdout.
-    """
-    x_to_eval = string_to_int(sentence, vocabulary, max(len(i) for i in x))
-    result = sess.run(tf.argmax(network_out, 1),
-                      feed_dict={data_in: x_to_eval, dropout_keep_prob: 1.0})
-    unnorm_result = sess.run(network_out, feed_dict={data_in: x_to_eval,
-                                                     dropout_keep_prob: 1.0})
-    network_sentiment = 'POS' if result == 1 else 'NEG'
-    log('Custom input evaluation:', network_sentiment)
-    log('Actual output:', str(unnorm_result[0]))
-
+# Session
+sess = tf.InteractiveSession()
 
 # Network
-# Placeholders
-data_in = tf.placeholder(tf.int32, [None, sequence_length], name='data_in')
-data_out = tf.placeholder(tf.float32, [None, num_classes], name='data_out')
-dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
-# Stores the accuracy of the model for each batch of the validation testing
-valid_accuracies = tf.placeholder(tf.float32)
-# Stores the loss of the model for each batch of the validation testing
-valid_losses = tf.placeholder(tf.float32)
+with tf.device(device):
+    # Placeholders
+    data_in = tf.placeholder(tf.int32, [None, sequence_length], name='data_in')
+    data_out = tf.placeholder(tf.float32, [None, num_classes], name='data_out')
+    dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
+    # Stores the accuracy of the model for each batch of the validation testing
+    valid_accuracies = tf.placeholder(tf.float32)
+    # Stores the loss of the model for each batch of the validation testing
+    valid_losses = tf.placeholder(tf.float32)
 
-# Embedding layer
-with tf.name_scope('embedding'):
-    W = tf.Variable(tf.random_uniform([vocab_size, FLAGS.embedding_size],
-                                      -1.0, 1.0),
-                    name='embedding_matrix')
-    embedded_chars = tf.nn.embedding_lookup(W, data_in)
-    embedded_chars_expanded = tf.expand_dims(embedded_chars, -1)
+    # Embedding layer
+    with tf.name_scope('embedding'):
+        W = tf.Variable(tf.random_uniform([vocab_size, FLAGS.embedding_size],
+                                          -1.0, 1.0),
+                        name='embedding_matrix')
+        embedded_chars = tf.nn.embedding_lookup(W, data_in)
+        embedded_chars_expanded = tf.expand_dims(embedded_chars, -1)
 
-# Convolution + ReLU + Pooling layer 
-pooled_outputs = []
-for i, filter_size in enumerate(filter_sizes):
-    with tf.name_scope('conv-maxpool-%s' % filter_size):
-        # Convolution Layer
-        filter_shape = [filter_size, FLAGS.embedding_size, 1, FLAGS.num_filters]
-        W = weight_variable(filter_shape, name='W_conv')
-        b = bias_variable([FLAGS.num_filters], name='b_conv')
-        conv = tf.nn.conv2d(embedded_chars_expanded,
-                            W,
-                            strides=[1, 1, 1, 1],
-                            padding='VALID',
-                            name='conv')
-        # Activation function
-        h = tf.nn.relu(tf.nn.bias_add(conv, b), name='relu')
-        # Maxpooling layer
-        ksize = [1, sequence_length - filter_size + 1, 1, 1]
-        pooled = tf.nn.max_pool(h,
-                                ksize=ksize,
+    # Convolution + ReLU + Pooling layer
+    pooled_outputs = []
+    for i, filter_size in enumerate(filter_sizes):
+        with tf.name_scope('conv-maxpool-%s' % filter_size):
+            # Convolution Layer
+            filter_shape = [filter_size,
+                            FLAGS.embedding_size,
+                            1,
+                            FLAGS.num_filters]
+            W = weight_variable(filter_shape, name='W_conv')
+            b = bias_variable([FLAGS.num_filters], name='b_conv')
+            conv = tf.nn.conv2d(embedded_chars_expanded,
+                                W,
                                 strides=[1, 1, 1, 1],
                                 padding='VALID',
-                                name='pool')
-    pooled_outputs.append(pooled)
+                                name='conv')
+            # Activation function
+            h = tf.nn.relu(tf.nn.bias_add(conv, b), name='relu')
+            # Maxpooling layer
+            ksize = [1,
+                     sequence_length - filter_size + 1,
+                     1,
+                     1]
+            pooled = tf.nn.max_pool(h,
+                                    ksize=ksize,
+                                    strides=[1, 1, 1, 1],
+                                    padding='VALID',
+                                    name='pool')
+        pooled_outputs.append(pooled)
 
-# Combine the pooled feature tensors
-num_filters_total = FLAGS.num_filters * len(filter_sizes)
-h_pool = tf.concat(pooled_outputs, 3)
-h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
+    # Combine the pooled feature tensors
+    num_filters_total = FLAGS.num_filters * len(filter_sizes)
+    h_pool = tf.concat(pooled_outputs, 3)
+    h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
 
-# Dropout
-with tf.name_scope('dropout'):
-    h_drop = tf.nn.dropout(h_pool_flat, dropout_keep_prob)
+    # Dropout
+    with tf.name_scope('dropout'):
+        h_drop = tf.nn.dropout(h_pool_flat, dropout_keep_prob)
 
-# Output layer
-with tf.name_scope('output'):
-    W_out = weight_variable([num_filters_total, num_classes], name='W_out')
-    b_out = bias_variable([num_classes], name='b_out')
-    network_out = tf.nn.softmax(tf.matmul(h_drop, W_out) + b_out)
+    # Output layer
+    with tf.name_scope('output'):
+        W_out = weight_variable([num_filters_total, num_classes], name='W_out')
+        b_out = bias_variable([num_classes], name='b_out')
+        network_out = tf.nn.softmax(tf.matmul(h_drop, W_out) + b_out)
 
-# Loss function
-cross_entropy = -tf.reduce_sum(data_out * tf.log(network_out))
+    # Loss function
+    cross_entropy = -tf.reduce_sum(data_out * tf.log(network_out))
 
-# Training algorithm
-train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    # Training algorithm
+    train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
-# Testing operations
-correct_prediction = tf.equal(tf.argmax(network_out, 1), tf.argmax(data_out, 1))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-valid_mean_accuracy = tf.reduce_mean(valid_accuracies)
-valid_mean_loss = tf.reduce_mean(valid_losses)
+    # Testing operations
+    correct_prediction = tf.equal(tf.argmax(network_out, 1),
+                                  tf.argmax(data_out, 1))
+    # Accuracy
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    # Validation ops
+    valid_mean_accuracy = tf.reduce_mean(valid_accuracies)
+    valid_mean_loss = tf.reduce_mean(valid_losses)
 
 # Init session
-if should_load and FLAGS.load != '':
+if FLAGS.load is not None:
     log('Data processing OK, loading network...')
     saver = tf.train.Saver()
     try:
@@ -277,7 +280,7 @@ if should_load and FLAGS.load != '':
     except:
         log('Couldn\'t restore the session properly, falling back to default '
             'initialization.')
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
 else:
     log('Data processing OK, creating network...')
     sess.run(tf.global_variables_initializer())
@@ -292,8 +295,6 @@ tf.summary.merge_all()
 
 # Training
 if FLAGS.train:
-    log('Starting training...')
-
     # Batches
     batches = batch_iter(zip(x_train, y_train), FLAGS.batch_size, FLAGS.epochs)
     test_batches = list(batch_iter(zip(x_test, y_test), FLAGS.batch_size, 1))
@@ -305,7 +306,10 @@ if FLAGS.train:
     batches_in_epoch = batches_in_epoch if batches_in_epoch != 0 else 1
     total_num_step = FLAGS.epochs * batches_in_epoch
 
-    for batch in batches:
+    batches_progressbar = tqdm(batches, total=total_num_step,
+                               desc='Starting training...')
+
+    for batch in batches_progressbar:
         global_step += 1
         x_batch, y_batch = zip(*batch)
 
@@ -324,9 +328,9 @@ if FLAGS.train:
         current_loss = cross_entropy.eval(feed_dict=feed_dict)
         current_epoch = 1 + (global_step / batches_in_epoch)
 
-        print('Step %d of %d (epoch %d), training accuracy: %g, loss: %g' %
-              (global_step, total_num_step, current_epoch, accuracy_result,
-               current_loss))
+        batches_progressbar.set_description('Epoch: %s - loss: %s - acc: %s' %
+                                            (current_epoch, current_loss,
+                                             accuracy_result))
 
         # Write loss summary
         summary_writer.add_summary(loss_summary_result, global_step)
@@ -335,7 +339,6 @@ if FLAGS.train:
         # Evaluate accuracy as (correctly classified samples) / (all samples)
         # For each batch, evaluate the loss
         if global_step % validate_every == 0:
-            print 'Step', global_step, ' - Validation test...'
             accuracies = []
             losses = []
             for test_batch in test_batches:
@@ -357,16 +360,20 @@ if FLAGS.train:
                 [valid_mean_loss, valid_loss_summary],
                 feed_dict={valid_losses: losses})
 
-            log('Step %d of %d (epoch %d), validation accuracy: %g, validation '
-                'loss: %g' % (global_step, total_num_step, current_epoch,
-                              mean_accuracy_result, mean_loss_result))
+            valid_msg = 'Step %d of %d (epoch %d), validation accuracy: %g, ' \
+                        'validation loss: %g' % \
+                        (global_step, total_num_step, current_epoch,
+                         mean_accuracy_result, mean_loss_result)
+            batches_progressbar.write(valid_msg)
+            log(valid_msg, verbose=False)  # Write only to file
 
             # Write summaries
             summary_writer.add_summary(accuracy_summary_result, global_step)
             summary_writer.add_summary(loss_summary_result, global_step)
 
         if FLAGS.save and global_step % checkpoint_every == 0:
-            log('Saving checkpoint...')
+            batches_progressbar.write('Saving checkpoint...')
+            log('Saving checkpoint...', verbose=False)
             saver = tf.train.Saver()
             saver.save(sess, CHECKPOINT_FILE_PATH)
 
@@ -395,11 +402,12 @@ if FLAGS.train:
     summary_writer.add_summary(accuracy_summary_result, global_step)
     summary_writer.add_summary(loss_summary_result, global_step)
 
-# Process custom input
+# Evaluate custom input
 if FLAGS.custom_input != '':
-    log('Processing custom input:', FLAGS.custom_input)
+    log('Evaluating custom input:', FLAGS.custom_input)
     evaluate_sentence(FLAGS.custom_input, vocabulary)
 
+# Evaluate held-out batch
 if FLAGS.evaluate_batch:
     if not FLAGS.train:
         _batches = list(batch_iter(zip(x_test, y_test), FLAGS.batch_size, 1))
@@ -412,10 +420,11 @@ if FLAGS.save:
     saver = tf.train.Saver()
     saver.save(sess, CHECKPOINT_FILE_PATH)
 
-# Save as Binary Protobufer
+# Save as binary Protobuffer
 if FLAGS.save_protobuf:
     log('Saving Protobuf...')
-    minimal_graph = convert_variables_to_constants(sess, sess.graph_def,
+    minimal_graph = convert_variables_to_constants(sess,
+                                                   sess.graph_def,
                                                    ['output/Softmax'])
     tf.train.write_graph(minimal_graph, RUN_DIR, 'minimal_graph.proto',
                          as_text=False)
