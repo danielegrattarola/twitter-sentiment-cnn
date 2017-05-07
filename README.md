@@ -44,7 +44,7 @@ python twitter-sentiment-cnn.py --train --save
 When the training in finished, we can test the network as follows:
 ```sh
 # replace 'runYYYYMMDD-HHmmss' with the actual name of the run folder (not the path, just the name of the folder)
-python twitter-sentiment-cnn.py --load runYYYYMMDD-HHmmss --custom_input 'I love neural networks!'
+python twitter-sentiment-cnn.py --load path/to/ckpt/folder/ --custom_input 'I love neural networks!'
 ```
 which will eventually output: 
 ```
