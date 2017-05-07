@@ -1,4 +1,5 @@
 import re
+from tqdm import tqdm
 
 """
 Reads the csv dataset available at
@@ -31,13 +32,11 @@ except IOError:
 csv_lines = full_dataset.readlines()
 i = 0.0
 
-for line in csv_lines:
+for line in tqdm(csv_lines):
     i += 1.0
     line = line.split(",", 3)
     tweet = line[3].strip()
     new_tweet = ''
-
-    print "{0:.0f}%".format((i / len(csv_lines)) * 100)
 
     for word in tweet.split():
         # String preprocessing

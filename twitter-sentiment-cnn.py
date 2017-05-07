@@ -4,6 +4,7 @@ from random import randint
 from generic_helpers import *
 from data_helpers import batch_iter, load_data, string_to_int
 import os
+import glob
 import time
 from tensorflow.python.framework.graph_util import convert_variables_to_constants
 from tqdm import tqdm
@@ -133,9 +134,6 @@ if FLAGS.load is not None:
     RUN_DIR = FLAGS.load
     LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
     CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'ckpt.ckpt'))
-    assert os.path.exists(RUN_DIR), 'Run folder does not exist.'
-    assert os.path.exists(LOG_FILE_PATH), 'log.log file does not exist.'
-    assert os.path.exists(CHECKPOINT_FILE_PATH), 'ckpt.ckpt does not exist.'
 else:
     RUN_ID = time.strftime('run%Y%m%d-%H%M%S')
     RUN_DIR = os.path.abspath(os.path.join(OUT_DIR, RUN_ID))
@@ -326,7 +324,7 @@ if FLAGS.train:
                      dropout_keep_prob: 1.0}
         accuracy_result = accuracy.eval(feed_dict=feed_dict)
         current_loss = cross_entropy.eval(feed_dict=feed_dict)
-        current_epoch = 1 + (global_step / batches_in_epoch)
+        current_epoch = (global_step / batches_in_epoch)
 
         batches_progressbar.set_description('Epoch: %s - loss: %s - acc: %s' %
                                             (current_epoch, current_loss,
