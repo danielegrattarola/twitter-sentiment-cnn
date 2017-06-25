@@ -107,23 +107,22 @@ the script will output a list of all customizable session parameters. The parame
 ## Model description
 The network implemented in this script is a single layer CNN structured
 as follows:
-- **Embedding layer**: takes in input the tweets (as strings) and maps
-    each word to an n-space so that it is represented as a sparse vector
+- **Embedding layer**: takes as input the tweets (as strings) and maps
+    each word to an n-dimensional space so that it is represented as a sparse vector
      (see [word2vec](https://en.wikipedia.org/wiki/Word2vec)).
-- **Convolution layers**: take as input the output of the previous layer
-    and perform a convolution using an arbitrary number of filters of
-    arbitrary size.
+- **Convolution layers**: performs a convolution using an arbitrary
+    number of filters of arbitrary sizes.
     Each layer is associated to a filter size and outputs to a single
     pooling layer (by defalut: 128 filters per filter size, sizes 3,4,5;
     this means that the network has 3 parallel conv+pool sections).
     Note that a filter size is the number of words that the filter
     covers.
-- **Pooling layers**: pool the output of a convolution layer using
+- **Pooling layers**: pools the output of a convolution layer using
     max-pooling.
 - **Concat layer**: concatenates the output of the different pooling
     layers into a single tensor.
 - **Dropout layer**: performs neuron dropout (some random neurons are
-    not considered during the computation).
+    not considered during training).
 - **Output layer**: fully connected layer that uses a softmax
     activation function to perform classification.
 
