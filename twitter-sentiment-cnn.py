@@ -1,10 +1,8 @@
 import tensorflow as tf
 import numpy as np
 from random import randint
-from generic_helpers import *
 from data_helpers import batch_iter, load_data, string_to_int
 import os
-import glob
 import time
 from tensorflow.python.framework.graph_util import convert_variables_to_constants
 from tqdm import tqdm

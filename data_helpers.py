@@ -1,7 +1,5 @@
 import numpy as np
 import re
-import itertools
-from collections import Counter
 import random, csv
 
 POS_DATASET_PATH = 'twitter-sentiment-dataset/tw-data.pos'

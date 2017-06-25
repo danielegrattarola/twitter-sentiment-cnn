@@ -9,6 +9,7 @@ negative tweets.
 Does some word preprocessing during the parsing.
 """
 
+# TODO Maybe, eventually, if the gods allow it, I'll do the migration to pandas.
 # import pandas as pd
 # df = pd.read_csv('twitter-sentiment-dataset/sentiment-dataset.csv',
 #                  error_bad_lines=False)
