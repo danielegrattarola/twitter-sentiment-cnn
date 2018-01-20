@@ -30,14 +30,14 @@ def clean_str(string):
     return string.strip().lower()
 
 
-def sample_list(list, dividend):
+def sample_list(list, fraction):
     """
     Returns 1/dividend-th of the given list, randomply sampled. 
     """
-    return random.sample(list, len(list)/dividend)
+    return random.sample(list, int(len(list) * fraction))
 
 
-def load_data_and_labels(reduced_dataset):
+def load_data_and_labels(dataset_fraction):
     """
     Loads data from files, processes the data and creates two lists, one of
     strings and one of labels.
@@ -52,8 +52,8 @@ def load_data_and_labels(reduced_dataset):
     negative_examples = [s.strip() for s in negative_examples]
     print "\tdata_helpers: [OK]"
 
-    positive_examples = sample_list(positive_examples, reduced_dataset)
-    negative_examples = sample_list(negative_examples, reduced_dataset)
+    positive_examples = sample_list(positive_examples, dataset_fraction)
+    negative_examples = sample_list(negative_examples, dataset_fraction)
 
     # Split by words
     x_text = positive_examples + negative_examples
@@ -151,13 +151,13 @@ def string_to_int(sentence, vocabulary, max_len):
         quit()
 
 
-def load_data(reduced_dataset):
+def load_data(dataset_fraction):
     """
     Loads and preprocessed data for the MR dataset.
     Returns input vectors, labels, vocabulary, and inverse vocabulary.
     """
     # Load and preprocess data
-    sentences, labels = load_data_and_labels(reduced_dataset)
+    sentences, labels = load_data_and_labels(dataset_fraction)
     print "\tdata_helpers: padding strings..."
     sentences_padded = pad_sentences(sentences)
     print "\tdata_helpers: [OK]"

@@ -86,33 +86,29 @@ def evaluate_sentence(sentence, vocabulary):
 
 # Hyperparameters
 tf.flags.DEFINE_boolean('train', False,
-                        'Should the network perform training? (default: False)')
+                        'Train the network (default: False)')
 tf.flags.DEFINE_boolean('save', False,
                         'Save session checkpoints (default: False)')
 tf.flags.DEFINE_boolean('save_protobuf', False,
-                        'Save session as binary protobuf (default: False)')
+                        'save model as binary protobuf (default: False)')
 tf.flags.DEFINE_boolean('evaluate_batch', False,
-                        'Print the network output on a batch from the dataset '
-                        '(for debugging/educational purposes')
+                        'Evaluate the network on a held-out batch from the '
+                        'dataset and print the results (for '
+                        'debugging/educational purposes)')
 tf.flags.DEFINE_string('load', None,
-                       'Load a previous run from the given path (must '
-                       'contain a log and checkpoint file).')
-tf.flags.DEFINE_string('device', 'cpu', 'Type of device to run the network on.'
-                                        '(Can be either \'cpu\' or \'gpu\')')
+                       'Restore a model from the given path.')
+tf.flags.DEFINE_string('device', 'cpu',
+                       'Device to use (can be either \'cpu\' or \'gpu\').')
 tf.flags.DEFINE_string('custom_input', '',
-                       'The program will print the network output for the '
-                       'given input string.')
+                       'Evaluate the model on the given string.')
 tf.flags.DEFINE_string('filter_sizes', '3,4,5',
                        'Comma-separated filter sizes for the convolution layer '
                        '(default: \'3,4,5\')')
-tf.flags.DEFINE_integer('reduced_dataset', 1,
-                        'Use 1/[REDUCED_DATASET]-th of the dataset to reduce '
-                        'memory usage (default: 1; uses all dataset)')
 tf.flags.DEFINE_integer('embedding_size', 128,
-                        'Size of character embedding (default: 128)')
+                        'Size of the word embeddings (default: 128)')
 tf.flags.DEFINE_integer('num_filters', 128,
                         'Number of filters per filter size (default: 128)')
-tf.flags.DEFINE_integer('batch_size', 100, 'Batch Size (default: 100)')
+tf.flags.DEFINE_integer('batch_size', 128, 'Batch size (default: 128)')
 tf.flags.DEFINE_integer('epochs', 3, 'Number of training epochs (default: 3)')
 tf.flags.DEFINE_integer('valid_freq', 1,
                         'Check model accuracy on validation set '
@@ -120,9 +116,12 @@ tf.flags.DEFINE_integer('valid_freq', 1,
 tf.flags.DEFINE_integer('checkpoint_freq', 1,
                         'Save model [CHECKPOINT_FREQ] times per epoch '
                         '(default: 1)')
-tf.flags.DEFINE_integer('test_data_ratio', 10,
-                        'Percentual of the dataset to be used for validation '
-                        '(default: 10)')
+tf.flags.DEFINE_float('dataset_fraction', 1.0,
+                      'Fraction of the dataset to load in memory, to reduce '
+                      'memory usage (default: 1.0; uses all dataset)')
+tf.flags.DEFINE_float('test_data_ratio', 0.1,
+                      'Fraction of the dataset to use for validation (default: '
+                      '0.1)')
 FLAGS = tf.flags.FLAGS
 
 # File paths
@@ -144,7 +143,7 @@ LOG_FILE = open(LOG_FILE_PATH, 'a', 0)
 
 log('======================= START! ========================')
 # Load data
-x, y, vocabulary, vocabulary_inv = load_data(FLAGS.reduced_dataset)
+x, y, vocabulary, vocabulary_inv = load_data(FLAGS.dataset_fraction)
 
 # Randomly shuffle data
 np.random.seed(123)
@@ -153,7 +152,7 @@ x_shuffled = x[shuffle_indices]
 y_shuffled = y[shuffle_indices]
 
 # Split train/test set
-text_percent = FLAGS.test_data_ratio / 100.0
+text_percent = FLAGS.test_data_ratio
 test_index = int(len(x) * text_percent)
 x_train, x_test = x_shuffled[:-test_index], x_shuffled[-test_index:]
 y_train, y_test = y_shuffled[:-test_index], y_shuffled[-test_index:]
@@ -324,9 +323,10 @@ if FLAGS.train:
         current_loss = cross_entropy.eval(feed_dict=feed_dict)
         current_epoch = (global_step / batches_in_epoch)
 
-        batches_progressbar.set_description('Epoch: %s - loss: %s - acc: %s' %
-                                            (current_epoch, current_loss,
-                                             accuracy_result))
+        desc = 'Epoch: {} - loss: {:9.5f} - acc: {:7.5f}'.format(current_epoch,
+                                                                 current_loss,
+                                                                 accuracy_result)
+        batches_progressbar.set_description(desc)
 
         # Write loss summary
         summary_writer.add_summary(loss_summary_result, global_step)
