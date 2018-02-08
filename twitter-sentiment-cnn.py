@@ -116,7 +116,7 @@ tf.flags.DEFINE_integer('valid_freq', 1,
 tf.flags.DEFINE_integer('checkpoint_freq', 1,
                         'Save model [CHECKPOINT_FREQ] times per epoch '
                         '(default: 1)')
-tf.flags.DEFINE_float('dataset_fraction', .001,
+tf.flags.DEFINE_float('dataset_fraction', 1.0,
                       'Fraction of the dataset to load in memory, to reduce '
                       'memory usage (default: 1.0; uses all dataset)')
 tf.flags.DEFINE_float('test_data_ratio', 0.1,
