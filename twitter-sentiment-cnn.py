@@ -116,7 +116,7 @@ tf.flags.DEFINE_integer('valid_freq', 1,
 tf.flags.DEFINE_integer('checkpoint_freq', 1,
                         'Save model [CHECKPOINT_FREQ] times per epoch '
                         '(default: 1)')
-tf.flags.DEFINE_float('dataset_fraction', 1.0,
+tf.flags.DEFINE_float('dataset_fraction', .001,
                       'Fraction of the dataset to load in memory, to reduce '
                       'memory usage (default: 1.0; uses all dataset)')
 tf.flags.DEFINE_float('test_data_ratio', 0.1,
@@ -126,17 +126,14 @@ FLAGS = tf.flags.FLAGS
 
 # File paths
 OUT_DIR = os.path.abspath(os.path.join(os.path.curdir, 'output'))
+RUN_ID = time.strftime('run%Y%m%d-%H%M%S')
+RUN_DIR = os.path.abspath(os.path.join(OUT_DIR, RUN_ID))
+LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
 if FLAGS.load is not None:
-    # Use logfile and checkpoint from given path
-    RUN_DIR = FLAGS.load
-    LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
-    CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'ckpt.ckpt'))
+    CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(FLAGS.load, 'ckpt.ckpt'))
 else:
-    RUN_ID = time.strftime('run%Y%m%d-%H%M%S')
-    RUN_DIR = os.path.abspath(os.path.join(OUT_DIR, RUN_ID))
-    LOG_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'log.log'))
     CHECKPOINT_FILE_PATH = os.path.abspath(os.path.join(RUN_DIR, 'ckpt.ckpt'))
-    os.mkdir(RUN_DIR)
+os.mkdir(RUN_DIR)
 SUMMARY_DIR = os.path.join(RUN_DIR, 'summaries')
 LOG_FILE = open(LOG_FILE_PATH, 'a', 0)
 
@@ -174,7 +171,7 @@ else:
 # Log run data
 log('\nFlags:')
 for attr, value in sorted(FLAGS.__flags.iteritems()):
-    log('\t%s = %s' % (attr, value))
+    log('\t%s = %s' % (attr, value._value))
 log('\nDataset:')
 log('\tTrain set size = %d\n'
     '\tTest set size = %d\n'

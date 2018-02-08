@@ -102,6 +102,83 @@ The parameters are:
 - `device`: device to use for running the model (can be either 'cpu' or
     'gpu').
 
+## Pre-trained model
+User [@Horkyze](https://github.com/Horkyze) kindly trained the model
+for three epochs on the full dataset and shared the summary folder for
+quick deploy.
+The folder is available on [Mega](https://mega.nz/#!xVg0ARYK!oVyBZatotQGOD_FFSzZl5gTS1Z49048vjFEbyzftcFY),
+to load the model simply unpack the zip file and use the `--load` flag
+as follows:
+
+```sh
+# Current directoty: twitter-sentiment-cnn/
+$ unzip path/to/run20180201-231509.zip
+$ python twitter-sentiment-cnn.py --load path/to/run20180201-231509/ --custom_input "I love neural networks!"
+```
+
+Running this command should give you something like:
+
+```
+======================= START! ========================
+	data_helpers: loading positive examples...
+	data_helpers: [OK]
+	data_helpers: loading negative examples...
+	data_helpers: [OK]
+	data_helpers: cleaning strings...
+	data_helpers: [OK]
+	data_helpers: generating labels...
+	data_helpers: [OK]
+	data_helpers: concatenating labels...
+	data_helpers: [OK]
+	data_helpers: padding strings...
+	data_helpers: [OK]
+	data_helpers: building vocabulary...
+	data_helpers: [OK]
+	data_helpers: building processed datasets...
+	data_helpers: [OK]
+
+Flags:
+	batch_size = 128
+	checkpoint_freq = 1
+	custom_input = I love neural networks!
+	dataset_fraction = 0.001
+	device = cpu
+	embedding_size = 128
+	epochs = 3
+	evaluate_batch = False
+	filter_sizes = 3,4,5
+	load = output/run20180201-231509/
+	num_filters = 128
+	save = False
+	save_protobuf = False
+	test_data_ratio = 0.1
+	train = False
+	valid_freq = 1
+
+Dataset:
+	Train set size = 1421
+	Test set size = 157
+	Vocabulary size = 274562
+	Input layer size = 36
+	Number of classes = 2
+
+Output folder: /home/phait/dev/twitter-sentiment-cnn/output/run20180208-112402
+Data processing OK, loading network...
+Evaluating custom input: I love neural networks!
+Custom input evaluation: POS
+Actual output: [0.04109644 0.95890355]
+```
+
+**NOTE: loading this model won't work if you change anything in the
+default network architecture, so don't set the `--filter_sizes` flag**.
+
+According to the `log.log` file provided by [@Horkyze](https://github.com/Horkyze),
+the model had a final validation accuracy of 0.80976, and a validation
+loss of 53.3314.
+
+I sincerely thank [@Horkyze](https://github.com/Horkyze) for providing
+the computational power and sharing the model with me.
+
 ## Model description
 The network implemented in this script is a single layer CNN structured
 as follows:
